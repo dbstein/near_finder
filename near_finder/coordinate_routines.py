@@ -1,6 +1,6 @@
 import numpy as np
-import fast_interp
 from .utilities import fourier_derivative_1d
+from .utilities import interp as _interp
 
 def compute_local_coordinates(cx, cy, x, y, newton_tol=1e-14, 
                                             guess_ind=None, verbose=False):
@@ -36,7 +36,7 @@ def compute_local_coordinates(cx, cy, x, y, newton_tol=1e-14,
 
     # interpolation routines for the necessary objects
     def interp(f):
-        return fast_interp.interp1d(0.0, 2*np.pi, dt, f, k=5, p=True)
+        return _interp(np.fft.fft(f), x.size)
     nx_i =  interp(nx)
     ny_i =  interp(ny)
     nxp_i = interp(nxp)
@@ -65,8 +65,8 @@ def compute_local_coordinates(cx, cy, x, y, newton_tol=1e-14,
 
     # brute force find of guess_inds if not provided (slow!)
     if guess_ind is None:
-        xd = x - bdy.x[:,None]
-        yd = y - bdy.y[:,None]
+        xd = x - cx[:,None]
+        yd = y - cy[:,None]
         dd = xd**2 + yd**2
         guess_ind = dd.argmin(axis=0)
 
@@ -93,18 +93,16 @@ def compute_local_coordinates(cx, cy, x, y, newton_tol=1e-14,
             remx = xo - x
             remy = yo - y
             rem_new = np.sqrt(remx**2 + remy**2).max()
-            # print line_factor
             if (rem_new < (1-0.5*line_factor)*rem) or line_factor < 1e-4:
                 t = t_new
+                # put theta back in [0, 2 pi]
+                t[t < 0] += 2*np.pi
+                t[t > 2*np.pi] -= 2*np.pi
                 r = r_new
                 rem = rem_new
                 break
             line_factor *= 0.5
         if verbose:
             print('Newton tol: {:0.2e}'.format(rem))
-
-    # put theta back in [0, 2 pi]
-    t[t < 0] += 2*np.pi
-    t[t > 2*np.pi] -= 2*np.pi
 
     return t, r

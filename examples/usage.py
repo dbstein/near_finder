@@ -20,8 +20,8 @@ nb = 16
 # nb = 1000
 
 # coordinates for grid
-xv = np.linspace(-1.2, 1.2, ng, endpoint=True)
-yv = np.linspace(-1.2, 1.2, ng, endpoint=True)
+xv = np.linspace(-1.3, 1.3, ng, endpoint=True)
+yv = np.linspace(-1.3, 1.3, ng, endpoint=True)
 x, y = np.meshgrid(xv, yv, indexing='ij')
 
 # get a star boundary

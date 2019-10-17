@@ -2,6 +2,7 @@ import numpy as np
 import scipy as sp
 import scipy.signal
 import warnings
+import finufftpy
 
 def fourier_derivative_1d(f=None, fh=None, d=1, ik=None, h=None, out='f'):
     """
@@ -115,3 +116,12 @@ def upsample(f, N):
         warnings.simplefilter('ignore')
         out = sp.signal.resample(f, N)
     return out
+
+class interp(object):
+    def __init__(self, in_hat, out_size):
+        self.in_hat = in_hat
+        self.out = np.empty(out_size, dtype=complex)
+        self.adj = 1.0/self.in_hat.shape[0]
+    def __call__(self, x_out):
+        finufftpy.nufft1d2(x_out, self.out, 1, 1e-15, self.in_hat, modeord=1)
+        return self.out.real*self.adj
