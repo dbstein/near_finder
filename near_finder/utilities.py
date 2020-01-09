@@ -3,6 +3,7 @@ import scipy as sp
 import scipy.signal
 import warnings
 import finufftpy
+import fast_interp
 
 def fourier_derivative_1d(f=None, fh=None, d=1, ik=None, h=None, out='f'):
     """
@@ -117,7 +118,13 @@ def upsample(f, N):
         out = sp.signal.resample(f, N)
     return out
 
-class interp(object):
+class interp_poly(object):
+    def __init__(self, f):
+        self.func = fast_interp.interp1d(0, 2*np.pi, 2*np.pi/f.size, f, k=3, p=True)
+    def __call__(self, x_out):
+        return self.func(x_out)
+
+class interp_fourier(object):
     def __init__(self, in_hat, out_size):
         self.in_hat = in_hat
         self.out = np.empty(out_size, dtype=complex)

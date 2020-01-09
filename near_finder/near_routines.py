@@ -1,7 +1,16 @@
 import numpy as np
 import numba
+import scipy as sp
+import scipy.spatial
 from .utilities import compute_curvature, compute_speed, upsample
 from .coordinate_routines import compute_local_coordinates
+try:
+    from array_list.array_list import create_selector
+    have_array_list = True
+except:
+    have_array_list = False
+    import warnings
+    warnings.warn('array_list package is not found; points_near_points and points_near_curve will be slower.')
 
 def gridpoints_near_curve(cx, cy, xv, yv, d, tol=1e-14, verbose=False):
     """
@@ -125,3 +134,161 @@ def _grid_near_points(x, y, xv, yv, d, close, gi, closest):
                     closest[j, k] = dist2
                     gi[j, k] = i
 
+def points_near_curve(cx, cy, x, y, d, tol=1e-14, verbose=False):
+    """
+    Computes, for all points, whether the points
+    1) are within d of the (closed) curve
+    2) for those that are within d of the curve,
+        how far the gridpoints are from the curve
+        (that is, closest approach in the normal direction)
+    3) local coordinates, in (r, t) coords, for the curve
+        that is, we assume the curve is given by X(t) = (cx(t_i), cy(t_i))
+        we define local coordinates X(t, r) = X(t) + n(t) r, where n is
+        the normal to the curve at t,
+        and return (r, t) for each gridpoint in some search region
+
+    Inputs:
+        cx,  float(nb): x-coordinates of boundary
+        cy,  float(nb): y-coordinates of boundary
+        x,   float(*):  x-values for test points
+        y,   float(*):  y-values for test points
+        d,   float:     distance to search within  
+        tol, float:     tolerance to be passed to Newton solver for coords
+        verbose, bool:  flag passed to coord solver for verbose output
+    Outputs: (tuple of)
+        in_annulus, bool (*), whether points are in annulus of radius d
+        r,          float(*), r-coordinate for points in_annulus
+        t,          float(*), t-coordinate for points in_annulus
+        (d, cx, cy) float,         search distance, upsampled cx, cy
+    """
+    sh = x.shape
+    x = x.ravel()
+    y = y.ravel()
+    sz = x.size
+
+    # compute the speed of the approximation
+    n = cx.size
+    dt = 2*np.pi/n
+    speed = compute_speed(cx, cy)
+    max_h = np.max(speed)*dt
+    # if the curve is too poorly resolved to compute things accurate, upsample
+    if max_h > d:
+        n *= int(np.ceil(max_h/d))
+        cx, cy = upsample(cx, n), upsample(cy, n)
+    # find all candidate points
+    D = 1.5*d # extra large fudge factor because its a curve
+    near, guess_ind, close = points_near_points(d, bx=cx, by=cy, tx=x, ty=y)
+    # initialize output matrices
+    in_annulus = np.zeros(sz, dtype=bool)
+    r = np.zeros(sz, dtype=float)
+    t = np.zeros(sz, dtype=float)
+    if np.sum(near) > 0:
+        # for all candidate points, perform brute force checking
+        x_test = x[near]
+        y_test = y[near]
+        gi = guess_ind[near]
+        t_test, r_test = compute_local_coordinates(cx, cy, x_test, y_test,
+                                    newton_tol=tol, guess_ind=gi, verbose=verbose)
+        # for those found by the coarse search, update based on values
+        init = np.abs(r_test) <= d
+        in_annulus[near] = init
+        r[in_annulus] = r_test[init]
+        t[in_annulus] = t_test[init]
+        in_annulus = in_annulus.reshape(sh)
+        r = r.reshape(sh)
+        t = t.reshape(sh)
+    not_in_annlus = np.logical_not(in_annulus)
+    r[not_in_annlus] = np.nan
+    t[not_in_annlus] = np.nan
+    return in_annulus, r, t, (d, cx, cy)
+
+@numba.njit()
+def _wrangle_groups(bx, by, tx, ty, Groups, close, guess_ind, dists):
+    N = tx.size
+    for i in range(N):
+        g = Groups.get(i)
+        close[i] = g.size > 0
+        if close[i]:
+            txi = tx[i]
+            tyi = ty[i]
+            min_ind = -1
+            min_d2 = 1e15
+            for j in range(g.size):
+                gj = g[j]
+                dx = txi - bx[gj]
+                dy = tyi - by[gj]
+                d2 = dx**2 + dy**2
+                if d2 < min_d2:
+                    min_ind = j
+                    min_d2 = d2
+            if min_ind >= 0:
+                guess_ind[i] = g[min_ind]
+                dists[i] = np.sqrt(min_d2)
+
+def points_near_points(d, bx=None, by=None, btree=None, tx=None, ty=None, ttree=None):
+    """
+    Fast tree based near-points finder for a set of test points and
+        set of boundary points
+
+    Returns a boolean array with size x.shape
+    The elements of the boolean array give whether that gridpoint is within
+    d of any of the points bx/by
+
+    When bx/by describe a polygon, one may use this function to find all points
+    within a distance D of the polygon, by setting:
+    d = sqrt(D^2 + (l/2)^2), where l is the length of the longest polygonal
+    segment.  If l < D, then d need only be 1.12D to guarantee all near-points
+    are found.  Note that points that are not within D of the polygon will aslo
+    be marked as "near", however
+
+    Inputs:
+        d:  distance to find near points
+        bx, float(nb): x-coordinates of boundary
+        by, float(nb): y-coordinates of boundary
+        btree, cKDTree for bx, by
+        tx,  float(*):  x-values for test points
+        ty:  float(*):  y-values for test points
+        ttree, cKDTree for tx, ty
+    Outputs:
+        close,     bool(*),  is this point within d of any boundary point?
+        guess_ind, int(*),   index of closest boundary point to this point
+        closest,   float(*), closest distance to a boundary point
+
+    For the inputs, for (*x, *y, *tree), at least
+        *x and *y --or-- *tree must be given
+    if *tree is given, it will be used
+    """
+    sh = tx.shape
+    tx = tx.ravel()
+    ty = ty.ravel()
+    sz = tx.size
+
+    # construct tree for boundary / test
+    if btree is None:
+        btree = sp.spatial.cKDTree(np.column_stack([bx, by]))
+    if ttree is None:
+        ttree = sp.spatial.cKDTree(np.column_stack([tx, ty]))
+    # query close points
+    groups = ttree.query_ball_tree(btree, d)
+    groups = [np.array(group) for group in groups]
+    # wrangle output
+    close = np.zeros(sz, dtype=bool)
+    guess_ind = np.zeros(sz, dtype=int) - 1
+    dists = np.zeros(sz, dtype=float) + 1e15
+    if False: # this is slower right now...
+        Groups = create_selector(groups)
+        _wrangle_groups(bx, by, tx, ty, Groups, close, guess_ind, dists)
+    else:
+        for gi, group in enumerate(groups):
+            close[gi] = len(group) > 0
+            if close[gi]:
+                dx = tx[gi] - bx[group]
+                dy = ty[gi] - by[group]
+                d2 = dx**2 + dy**2
+                min_ind = np.argmin(d2)
+                guess_ind[gi] = group[min_ind]
+                dists[gi] = np.sqrt(d2[min_ind])
+    close = close.reshape(sh)
+    guess_ind = guess_ind.reshape(sh)
+    dists = dists.reshape(sh)
+    return close, guess_ind, dists

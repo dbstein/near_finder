@@ -1,6 +1,7 @@
 import numpy as np
 from .utilities import fourier_derivative_1d
-from .utilities import interp as _interp
+from .utilities import interp_fourier as _interp
+# from .utilities import interp_poly as _interp
 
 def compute_local_coordinates(cx, cy, x, y, newton_tol=1e-14, 
                                             guess_ind=None, verbose=False):
@@ -37,6 +38,7 @@ def compute_local_coordinates(cx, cy, x, y, newton_tol=1e-14,
     # interpolation routines for the necessary objects
     def interp(f):
         return _interp(np.fft.fft(f), x.size)
+        # return _interp(f)
     nx_i =  interp(nx)
     ny_i =  interp(ny)
     nxp_i = interp(nxp)

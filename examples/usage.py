@@ -3,7 +3,7 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 import time
 from near_finder.near_routines import gridpoints_near_points, gridpoints_near_curve
-from near_finder.phys_routines import gridpoints_inside_curve
+from near_finder.phys_routines import points_inside_curve
 from near_finder.utilities import star
 
 """
@@ -16,7 +16,7 @@ Demonstration of near_finder utility
 # number of points in grid (in each direction)
 ng = 200
 # number of points in boundary (set to small to see accuracy, large to see speed)
-nb = 16
+nb = 20
 # nb = 1000
 
 # coordinates for grid
@@ -80,9 +80,9 @@ plt.colorbar(clf)
 ################################################################################
 # Test finding points inside curve
 
-inside = gridpoints_inside_curve(x, y, result)
+inside = points_inside_curve(x, y, result)
 st = time.time()
-inside = gridpoints_inside_curve(x, y, result)
+inside = points_inside_curve(x, y, result)
 time_inside_curve = time.time() - st
 
 print('Time for points inside curve finder: {:0.1f}'.format(time_inside_curve*1000))

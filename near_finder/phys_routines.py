@@ -3,14 +3,14 @@ import numba
 import shapely.geometry
 from .utilities import upsample, compute_normals
 
-def gridpoints_inside_curve(x, y, res):
+def points_inside_curve(x, y, res):
     """
-    Computes, for all gridpoints, whether the gridpoints are inside
+    Computes, for all points, whether the points are inside
         or outside of the closed curve
     Inputs:
         x,   float(nx, ny): x-values for grid coordinates
         y,   float(nx, ny): y-values for grid coordinates
-        res, tuple:         result of call to gridpoints_inside_curve
+        res, tuple:         result of call to gridpoints_near_curve / points_near_curve
     """
     in_annulus = res[0]
     r = res[1]
