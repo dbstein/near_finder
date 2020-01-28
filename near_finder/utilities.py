@@ -4,6 +4,27 @@ import scipy.signal
 import warnings
 import finufftpy
 import fast_interp
+import numba
+
+@numba.njit
+def inarray(val, arr):
+    init = False
+    i = 0
+    arr = arr.ravel()
+    while not init and i < arr.size:
+        init = arr[i] == val
+        i += 1
+    if not init:
+        i = 0
+    return init, i-1
+
+@numba.njit
+def extend_array(a, new_size, fill_zero=False):
+    new = np.empty(new_size, a.dtype)
+    new[:a.size] = a
+    if fill_zero:
+        new[a.size:] = 0
+    return new
 
 def fourier_derivative_1d(f=None, fh=None, d=1, ik=None, h=None, out='f'):
     """
@@ -119,8 +140,8 @@ def upsample(f, N):
     return out
 
 class interp_poly(object):
-    def __init__(self, f):
-        self.func = fast_interp.interp1d(0, 2*np.pi, 2*np.pi/f.size, f, k=3, p=True)
+    def __init__(self, f, order):
+        self.func = fast_interp.interp1d(0, 2*np.pi, 2*np.pi/f.size, f, k=order, p=True)
     def __call__(self, x_out):
         return self.func(x_out)
 

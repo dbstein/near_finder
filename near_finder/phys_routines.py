@@ -78,3 +78,71 @@ def isPointInPath(x, y, polyx, polyy):
             c = not c
         j = i
     return c
+
+
+
+
+
+def points_inside_curve_sparse(xv, yv, res):
+    """
+    Returns a physical array inside a bounding box, and indeces into the full array
+
+    res, tuple:         result of call to gridpoints_near_curve_sparse / points_near_curve_sparse
+    """
+    x_ind = res[0]
+    y_ind = res[1]
+    r = res[2]
+    t = res[3]
+    d = res[4][0]
+    cx = res[4][1]
+    cy = res[4][2]
+    # first construct dense array for doing brute force solve
+    xh = xv[1] - xv[0]
+    cx_min = np.min(cx) - d
+    cx_max = np.max(cx) + d
+    xv_min_ind = max(0,       int((cx_min-d-xv[0])//xh))
+    xv_max_ind = min(xv.size, int((cx_max+d-xv[0])//xh)+2)
+    yh = yv[1] - yv[0]
+    cy_min = np.min(cy) - d
+    cy_max = np.max(cy) + d
+    yv_min_ind = max(0,       int((cy_min-d-yv[0])//yh))
+    yv_max_ind = min(yv.size, int((cy_max+d-yv[0])//yh)+2)
+    xv_small = xv[xv_min_ind:xv_max_ind]
+    yv_small = yv[yv_min_ind:yv_max_ind]
+    x, y = np.meshgrid(xv_small, yv_small, indexing='ij')
+    # construct output array
+    inside = np.zeros([xv.size, yv.size], dtype=bool)
+
+    # get normals
+    nx, ny = compute_normals(cx, cy)
+    # compute bounding boundaries
+    bx = cx - 0.9*d*nx
+    by = cy - 0.9*d*ny
+    ux = cx + 0.9*d*nx
+    uy = cy + 0.9*d*ny
+    # put bounding boundaries into shapely format
+    bbdy = list(zip(bx, by))
+    ubdy = list(zip(ux, uy))
+    bpath = shapely.geometry.Polygon(bbdy)
+    upath = shapely.geometry.Polygon(ubdy)
+    # find an undersampled boundary that lies between bounding boundaries
+    n = 5
+    good = False
+    while not good:
+        new_t  = np.linspace(0, 2*np.pi, n, endpoint=False)
+        rcx = upsample(cx, n)
+        rcy = upsample(cy, n)
+        new_path = shapely.geometry.Polygon(list(zip(rcx, rcy)))
+        test1 = upath.contains(new_path)
+        test2 = new_path.contains(bpath)
+        good = test1 and test2
+        if not good:
+            n += 5
+    # find points inside/outside of undersampled boundary
+    inside = numba_find_phys(x, y, rcx, rcy)
+    # now for points inside the annulus, adjust based on local coordinates
+    inside[x_ind-xv_min_ind, y_ind-yv_min_ind] = r <= 0.0
+    return inside, xv_min_ind, xv_max_ind, yv_min_ind, yv_max_ind
+
+
+
