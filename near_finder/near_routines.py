@@ -13,7 +13,7 @@ except:
     import warnings
     warnings.warn('array_list package is not found; points_near_points and points_near_curve will be slower.')
 
-def gridpoints_near_curve(cx, cy, xv, yv, d, tol=1e-14, verbose=False):
+def gridpoints_near_curve(cx, cy, xv, yv, d, interpolation_scheme='nufft', tol=1e-14, verbose=False):
     """
     Computes, for all gridpoints, whether the gridpoints
     1) are within d of the (closed) curve
@@ -58,7 +58,7 @@ def gridpoints_near_curve(cx, cy, xv, yv, d, tol=1e-14, verbose=False):
     x_test = xv[wh[0]]
     y_test = yv[wh[1]]
     gi = guess_ind[wh[0], wh[1]]
-    t_test, r_test = compute_local_coordinates(cx, cy, x_test, y_test,
+    t_test, r_test = compute_local_coordinates(cx, cy, x_test, y_test, interpolation_scheme=interpolation_scheme,
                                 newton_tol=tol, guess_ind=gi, verbose=verbose)
     # initialize output matrices
     sh = (xv.size, yv.size)
@@ -136,7 +136,7 @@ def _grid_near_points(x, y, xv, yv, d, close, gi, closest):
                     closest[j, k] = dist2
                     gi[j, k] = i
 
-def points_near_curve(cx, cy, x, y, d, tol=1e-14, verbose=False):
+def points_near_curve(cx, cy, x, y, d, interpolation_scheme='nufft', tol=1e-14, verbose=False):
     """
     Computes, for all points, whether the points
     1) are within d of the (closed) curve
@@ -189,7 +189,7 @@ def points_near_curve(cx, cy, x, y, d, tol=1e-14, verbose=False):
         x_test = x[near]
         y_test = y[near]
         gi = guess_ind[near]
-        t_test, r_test = compute_local_coordinates(cx, cy, x_test, y_test,
+        t_test, r_test = compute_local_coordinates(cx, cy, x_test, y_test, interpolation_scheme=interpolation_scheme,
                                     newton_tol=tol, guess_ind=gi, verbose=verbose)
         # for those found by the coarse search, update based on values
         init = np.abs(r_test) <= d
@@ -203,6 +203,73 @@ def points_near_curve(cx, cy, x, y, d, tol=1e-14, verbose=False):
     r[not_in_annlus] = np.nan
     t[not_in_annlus] = np.nan
     return in_annulus, r, t, (d, cx, cy)
+
+def points_near_curve_danger(cx, cy, x, y, d, danger_zone, gi, interpolation_scheme='nufft', tol=1e-14, verbose=False):
+    """
+    Computes, for all points, whether the points
+    1) are within d of the (closed) curve
+    2) for those that are within d of the curve,
+        how far the gridpoints are from the curve
+        (that is, closest approach in the normal direction)
+    3) local coordinates, in (r, t) coords, for the curve
+        that is, we assume the curve is given by X(t) = (cx(t_i), cy(t_i))
+        we define local coordinates X(t, r) = X(t) + n(t) r, where n is
+        the normal to the curve at t,
+        and return (r, t) for each gridpoint in some search region
+
+    Inputs:
+        cx,  float(nb): x-coordinates of boundary
+        cy,  float(nb): y-coordinates of boundary
+        x,   float(*):  x-values for test points
+        y,   float(*):  y-values for test points
+        d,   float:     distance to search within  
+        tol, float:     tolerance to be passed to Newton solver for coords
+        verbose, bool:  flag passed to coord solver for verbose output
+    Outputs: (tuple of)
+        in_annulus, bool (*), whether points are in annulus of radius d
+        r,          float(*), r-coordinate for points in_annulus
+        t,          float(*), t-coordinate for points in_annulus
+        (d, cx, cy) float,         search distance, upsampled cx, cy
+    """
+    sh = x.shape
+    x = x.ravel()
+    y = y.ravel()
+    sz = x.size
+
+    # compute the speed of the approximation
+    n = cx.size
+    dt = 2*np.pi/n
+    speed = compute_speed(cx, cy)
+    max_h = np.max(speed)*dt
+    # if the curve is too poorly resolved to compute things accurate, upsample
+    if max_h > d:
+        n *= int(np.ceil(max_h/d))
+        cx, cy = upsample(cx, n), upsample(cy, n)
+    # get candidate points from danger_zone
+    near = danger_zone.ravel()
+    # setup output variables
+    in_annulus = np.zeros(sz, dtype=bool)
+    r = np.zeros(sz, dtype=float)
+    t = np.zeros(sz, dtype=float)    
+    if np.sum(near) > 0:
+        # for all candidate points, perform brute force checking
+        x_test = x[near]
+        y_test = y[near]
+        gi = gi[near]
+        t_test, r_test = compute_local_coordinates(cx, cy, x_test, y_test, interpolation_scheme=interpolation_scheme,
+                                    newton_tol=tol, guess_ind=gi, verbose=verbose)
+        # for those found by the coarse search, update based on values
+        init = np.abs(r_test) <= d
+        in_annulus[near] = init
+        r[in_annulus] = r_test[init]
+        t[in_annulus] = t_test[init]
+        in_annulus = in_annulus.reshape(sh)
+        r = r.reshape(sh)
+        t = t.reshape(sh)
+    not_in_annlus = np.logical_not(in_annulus)
+    r[not_in_annlus] = np.nan
+    t[not_in_annlus] = np.nan
+    return in_annulus, r, t, (d, cx, cy)    
 
 @numba.njit()
 def _wrangle_groups(bx, by, tx, ty, Groups, close, guess_ind, dists):
@@ -429,7 +496,7 @@ def _grid_near_points_sparse(x, y, xv, yv, d):
     closest = closest[:n_close]
     return n_close, ind_x, ind_y, gi, closest
 
-def gridpoints_near_curve_sparse(cx, cy, xv, yv, d, tol=1e-14, verbose=False):
+def gridpoints_near_curve_sparse(cx, cy, xv, yv, d, interpolation_scheme='nufft', tol=1e-14, verbose=False):
     """
     Computes, for all gridpoints, whether the gridpoints
     1) are within d of the (closed) curve
@@ -472,7 +539,7 @@ def gridpoints_near_curve_sparse(cx, cy, xv, yv, d, tol=1e-14, verbose=False):
     # for all candidate points, perform brute force checking
     x_test = xv[x_ind]
     y_test = yv[y_ind]
-    t_test, r_test = compute_local_coordinates(cx, cy, x_test, y_test,
+    t_test, r_test = compute_local_coordinates(cx, cy, x_test, y_test, interpolation_scheme=interpolation_scheme,
                                 newton_tol=tol, guess_ind=guess_ind, verbose=verbose)
     init = np.abs(r_test) <= d
     x_ind = x_ind[init]
