@@ -5,7 +5,7 @@ import scipy.interpolate
 from near_finder.utilities import fourier_derivative_1d
 from near_finder.utilities import interp_fourier as _interp
 
-def compute_local_coordinates(cx, cy, x, y, newton_tol=1e-14,
+def compute_local_coordinates(cx, cy, x, y, newton_tol=1e-12,
             interpolation_scheme='nufft', guess_ind=None, verbose=False, max_iterations=30):
     """
     Find (s, r) given (x, y) using the coordinates:
@@ -26,7 +26,7 @@ def compute_local_coordinates(cx, cy, x, y, newton_tol=1e-14,
     else:
         raise Exception('interpolation_scheme not recognized')    
 
-def compute_local_coordinates_nufft(cx, cy, x, y, newton_tol=1e-14, 
+def compute_local_coordinates_nufft(cx, cy, x, y, newton_tol=1e-12, 
                                             guess_ind=None, verbose=False, max_iterations=30):
     """
     Find using the coordinates:
@@ -96,9 +96,23 @@ def compute_local_coordinates_nufft(cx, cy, x, y, newton_tol=1e-14,
 
     # get starting points (initial guess for t and r)
     t = ts[guess_ind]
-    xdg = x - cx[guess_ind]
-    ydg = y - cy[guess_ind]
+    # r = t*0.0
+    cxg = cx[guess_ind]
+    cyg = cy[guess_ind]
+    xdg = x - cxg
+    ydg = y - cyg
     r = np.sqrt(xdg**2 + ydg**2)
+    # how about we re-sign r?
+    nxg = nx[guess_ind]
+    nyg = ny[guess_ind]
+    xcr1 = cxg + r*nxg
+    ycr1 = cyg + r*nyg
+    d1 = np.hypot(xcr1-x, ycr1-y)
+    xcr2 = cxg - r*nxg
+    ycr2 = cyg - r*nyg
+    d2 = np.hypot(xcr2-x, ycr2-y)
+    better2 = d1 > d2
+    r[better2] *= -1
 
     # begin Newton iteration
     xo, yo = f(t, r)
@@ -240,13 +254,6 @@ def _newton(t, r, xi, yi, newton_tol, cx, cy, nx, ny, xp, yp, nxp, nyp, verbose,
         delt = (J01*remy-J11*remx)*idetJ
         delr = (J10*remx-J00*remy)*idetJ
 
-        # t, r = t + delt, r + delr
-        # xo, yo = _f(t, r, cx, cy, nx, ny)
-        # remx = xo - xi
-        # remy = yo - yi
-        # rem = np.sqrt(remx**2 + remy**2)
-        # print(rem)
-
         # take step with simple line search
         line_factor = 1.0
         while True:
@@ -263,9 +270,7 @@ def _newton(t, r, xi, yi, newton_tol, cx, cy, nx, ny, xp, yp, nxp, nyp, verbose,
             line_factor *= 0.5
         iteration += 1
         if iteration > maxi:
-            r = np.Inf
-            break
-            # raise Exception('Exceeded maximum number of iterations solving for coordinates .')
+            raise Exception('Exceeded maximum number of iterations solving for coordinates.')
     if t < 0:        t += 2*np.pi
     if t >= 2*np.pi: t -= 2*np.pi
     return t, r
@@ -277,7 +282,7 @@ def _multi_newton(its, irs, x, y, newton_tol, cx, cy, nx, ny, xp, yp, nxp, nyp, 
     for i in numba.prange(N):
         all_t[i], all_r[i] = _newton(its[i], irs[i], x[i], y[i], newton_tol, cx, cy, nx, ny, xp, yp, nxp, nyp, verbose, maxi)
     return all_t, all_r
-def compute_local_coordinates_polyi(cx, cy, x, y, newton_tol=1e-14,
+def compute_local_coordinates_polyi(cx, cy, x, y, newton_tol=1e-12,
                                             guess_ind=None, verbose=False, max_iterations=30):
     """
     Find using the coordinates:
@@ -318,9 +323,22 @@ def compute_local_coordinates_polyi(cx, cy, x, y, newton_tol=1e-14,
 
     # get starting points (initial guess for t and r)
     initial_ts = ts[guess_ind]
-    xdg = x - cx[guess_ind]
-    ydg = y - cy[guess_ind]
-    initial_rs = -np.sqrt(xdg**2 + ydg**2)
+    cxg = cx[guess_ind]
+    cyg = cy[guess_ind]
+    xdg = x - cxg
+    ydg = y - cyg
+    initial_rs = np.sqrt(xdg**2 + ydg**2)
+    # how about we re-sign r?
+    nxg = nx[guess_ind]
+    nyg = ny[guess_ind]
+    xcr1 = cxg + initial_rs*nxg
+    ycr1 = cyg + initial_rs*nyg
+    d1 = np.hypot(xcr1-x, ycr1-y)
+    xcr2 = cxg - initial_rs*nxg
+    ycr2 = cyg - initial_rs*nyg
+    d2 = np.hypot(xcr2-x, ycr2-y)
+    better2 = d1 > d2
+    initial_rs[better2] *= -1
 
     # run the multi-newton solver
     all_t, all_r = _multi_newton(initial_ts, initial_rs, x, y, newton_tol, cx, cy, nx, ny, xp, yp, nxp, nyp, verbose, max_iterations)

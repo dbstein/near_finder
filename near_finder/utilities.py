@@ -10,8 +10,8 @@ import numba
 def inarray(val, arr):
     init = False
     i = 0
-    arr = arr.ravel()
-    while not init and i < arr.size:
+    # while not init and i < arr.size:
+    while not init and i < len(arr):
         init = arr[i] == val
         i += 1
     if not init:
