@@ -145,6 +145,33 @@ class interp_poly(object):
     def __call__(self, x_out):
         return self.func(x_out)
 
+try:
+    from finufftpy._interfaces import interpolater as interp_fourier2
+    have_better_fourier = True
+except:
+    have_better_fourier = False
+
+@numba.njit(parallel=True)
+def dirft1d2(x, f):
+    c = np.empty(x.size, dtype=complex)
+    ms = f.size
+    kmin = -ms//2
+    for j in numba.prange(nj):
+        a = np.exp(IMA*x[j])
+        p = np.pow(a, kmin)
+        cc = 0 + 0j
+        for m in range(ms):
+            cc += f[m]*p
+            p *= a
+        c[j] = cc
+    return c.real
+
+class direct_interp_fourier(object):
+    def __init__(self, f):
+        self.fh = np.fft.fftshift(np.fft.fft(f))
+    def __call__(self, x):
+        return dirft1d2(x, self.f)
+
 class interp_fourier(object):
     def __init__(self, in_hat, out_size):
         self.in_hat = in_hat

@@ -15,13 +15,13 @@ Demonstration of near_finder utility
 ################################################################################
 # Setup
 
-ng                   = 2000     # number of points in grid (in each direction)
+ng                   = 200     # number of points in grid (in each direction)
 nb1                  = 20       # number of points in boundary 1
 nb2                  = 20       # number of points in boundary 2
 nb3                  = 30       # number of points in boundary 3
 nb4                  = 20       # number of points in boundary 4
 verbose              = False    # provide verbose output in coordinate solving
-interpolation_scheme = 'polyi'  # 'polyi' or 'nufft'
+interpolation_scheme = 'nufft'  # 'polyi' or 'nufft'
 								# note that verbose=True does nothing for 'polyi'
 
 # coordinates for grid
@@ -32,8 +32,8 @@ x, y = np.meshgrid(xv, yv, indexing='ij')
 # outer boundary
 bx1, by1 = star(nb1, r=9, a=0.05, f=3)
 # inner boundaries
-bx2, by2 = star(nb2, x=1.39,  y=3,  r=4.1, a=0.2,  f=5)
-bx3, by3 = star(nb3, x=-5,    y=4,  r=2,   a=0.25, f=7)
+bx2, by2 = star(nb2, x=1.55,  y=3,  r=4.1, a=0.2,  f=5)
+bx3, by3 = star(nb3, x=-5,    y=4,  r=2.2,   a=0.25, f=7)
 bx4, by4 = star(nb4, x=-5.44, y=-4, r=2,   a=0.3,  f=3)
 
 print('\n\nNear-Finder demonstration, on', ng, 'by', ng, 'grid.')

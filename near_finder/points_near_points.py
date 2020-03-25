@@ -145,19 +145,19 @@ def _grid_near_points_udpate(x, y, xv, yv, d, close, gi, closest, helper1, helpe
                 xd = xv[j] - x[i]
                 yd = yv[k] - y[i]
                 dist2 = xd**2 + yd**2
-                close_here = dist2 < d2
+                close_here = dist2 <= d2
                 comes_from_other = helper1[j, k] != idn
                 if close_here:
                     if comes_from_other:
                         counter += 1
+                        close[j, k] = True
+                        helper1[j, k] = idn
                         helper2[j, k] = close[j, k]
                         closest[j, k] = dist2
                         gi[j, k] = i
                     elif dist2 < closest[j, k]:
                         closest[j, k] = dist2
                         gi[j, k] = i
-                    close[j, k] = True
-                    helper1[j, k] = idn
     # construct sparse output
     idx  = np.empty(counter, dtype=np.int64)
     idy  = np.empty(counter, dtype=np.int64)

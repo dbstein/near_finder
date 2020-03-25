@@ -32,7 +32,7 @@ def _upsample_curve(cx, cy, d):
         cx, cy = upsample(cx, n), upsample(cy, n)
     # extra large fudge factor for near search because its a curve
     D = 1.5*d
-    return cx, cy, D
+    return cx.copy(), cy.copy(), D
 
 def _check_near_points(cx, cy, x, y, d, iao, ro, to, near, interpolation_scheme, tol, gi, verbose):
     """
@@ -148,7 +148,7 @@ def gridpoints_near_curve(cx, cy, xv, yv, d, interpolation_scheme='nufft', tol=1
                                         interpolation_scheme, tol, gi, verbose )
     return in_annulus, r, t, (d, cx, cy)
 
-def gridpoints_near_curve_update(cx, cy, xv, yv, d, idn, close, int_helper1, int_helper2, bool_helper, float_helper, interpolation_scheme='nufft', tol=1e-12, verbose=False):
+def gridpoints_near_curve_update(cx, cy, xv, yv, d, idn, close, int_helper1, int_helper2, float_helper, bool_helper, interpolation_scheme='nufft', tol=1e-12, verbose=False):
     """
     Computes, for all gridpoints spanned by (xv, yv), whether the gridpoints
     1) are within d of the (closed) curve
@@ -213,14 +213,13 @@ def gridpoints_near_curve_update(cx, cy, xv, yv, d, idn, close, int_helper1, int
     close[indx, indy] = np.logical_or(bool_helper[indx, indy], ia)
     indx = indx[ia]
     indy = indy[ia]
-    sgi  = sgi [ia]
     r    = r   [ia]
     t    = t   [ia]
     nclose = indx.size
 
     return nclose, indx, indy, r, t, (d, cx, cy)
 
-def points_near_curve(cx, cy, x, y, d, near, guess_ind, interpolation_scheme='nufft', tol=1e-12, verbose=False):
+def points_near_curve(cx, cy, x, y, d, near=None, guess_ind=None, interpolation_scheme='nufft', tol=1e-12, verbose=False):
     """
     Computes, for all points, whether the points
     1) are within d of the (closed) curve

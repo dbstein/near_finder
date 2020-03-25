@@ -4,6 +4,9 @@ import scipy
 import scipy.interpolate
 from near_finder.utilities import fourier_derivative_1d
 from near_finder.utilities import interp_fourier as _interp
+from near_finder.utilities import have_better_fourier
+if have_better_fourier:
+    from near_finder.utilities import interp_fourier2 as _interp2
 
 def compute_local_coordinates(cx, cy, x, y, newton_tol=1e-12,
             interpolation_scheme='nufft', guess_ind=None, verbose=False, max_iterations=30):
@@ -59,8 +62,12 @@ def compute_local_coordinates_nufft(cx, cy, x, y, newton_tol=1e-12,
     nyp = fourier_derivative_1d(f=ny, d=1, ik=ik, out='f')
 
     # interpolation routines for the necessary objects
-    def interp(f):
-        return _interp(np.fft.fft(f), x.size)
+    if have_better_fourier:
+        def interp(f):
+            return _interp2(f)
+    else:
+        def interp(f):
+            return _interp(np.fft.fft(f), x.size)
     nx_i =  interp(nx)
     ny_i =  interp(ny)
     nxp_i = interp(nxp)
@@ -96,7 +103,6 @@ def compute_local_coordinates_nufft(cx, cy, x, y, newton_tol=1e-12,
 
     # get starting points (initial guess for t and r)
     t = ts[guess_ind]
-    # r = t*0.0
     cxg = cx[guess_ind]
     cyg = cy[guess_ind]
     xdg = x - cxg
