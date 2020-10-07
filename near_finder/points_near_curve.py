@@ -219,6 +219,12 @@ def gridpoints_near_curve_update(cx, cy, xv, yv, d, idn, close, int_helper1, int
 
     return nclose, indx, indy, r, t, (d, cx, cy)
 
+def points_near_curve_coarse(cx, cy, x, y, d):
+    # upsample if needed and get search distance
+    cx, cy, D = _upsample_curve(cx, cy, d)    
+    near, guess_ind, close = points_near_points(d, bx=cx, by=cy, tx=x, ty=y)
+    return near, guess_ind
+
 def points_near_curve(cx, cy, x, y, d, near=None, guess_ind=None, interpolation_scheme='nufft', tol=1e-12, verbose=False):
     """
     Computes, for all points, whether the points
