@@ -66,7 +66,7 @@ def _check_near_points(cx, cy, x, y, d, iao, ro, to, near, interpolation_scheme,
     iao[near] = ia
     ro[near] = r
     to[near] = t
-def _check_near_points_all(cx, cy, x, y, d, interpolation_scheme, tol, gi, verbose):
+def _check_near_points_all(cx, cy, x, y, d, interpolation_scheme, tol, gi, verbose, max_iterations):
     """
     Check all points in (x, y to see if they are close to the curve
     This is done using a Newton solver, and checking the local coordinates
@@ -89,7 +89,7 @@ def _check_near_points_all(cx, cy, x, y, d, interpolation_scheme, tol, gi, verbo
         t,  float(*): t-coordinate for points that are in the annulus
     """
     t, r = compute_local_coordinates(cx, cy, x, y, interpolation_scheme=interpolation_scheme,
-                                newton_tol=tol, guess_ind=gi, verbose=verbose)
+                                newton_tol=tol, guess_ind=gi, verbose=verbose, max_iterations=max_iterations)
     ia = np.abs(r) <= d
     nia = np.logical_not(ia)
     r[nia] = np.nan
@@ -148,7 +148,7 @@ def gridpoints_near_curve(cx, cy, xv, yv, d, interpolation_scheme='nufft', tol=1
                                         interpolation_scheme, tol, gi, verbose )
     return in_annulus, r, t, (d, cx, cy)
 
-def gridpoints_near_curve_update(cx, cy, xv, yv, d, idn, close, int_helper1, int_helper2, float_helper, bool_helper, interpolation_scheme='nufft', tol=1e-12, verbose=False):
+def gridpoints_near_curve_update(cx, cy, xv, yv, d, idn, close, int_helper1, int_helper2, float_helper, bool_helper, interpolation_scheme='nufft', tol=1e-12, verbose=False, max_iterations=30):
     """
     Computes, for all gridpoints spanned by (xv, yv), whether the gridpoints
     1) are within d of the (closed) curve
@@ -209,7 +209,7 @@ def gridpoints_near_curve_update(cx, cy, xv, yv, d, idn, close, int_helper1, int
         x_test = xv[indx]
         y_test = yv[indy]
         # get local coordinates, find points in_annulus, get coords
-        ia, r, t = _check_near_points_all( cx, cy, x_test, y_test, d, interpolation_scheme, tol, sgi, verbose )
+        ia, r, t = _check_near_points_all( cx, cy, x_test, y_test, d, interpolation_scheme, tol, sgi, verbose, max_iterations=max_iterations )
     close[indx, indy] = np.logical_or(bool_helper[indx, indy], ia)
     indx = indx[ia]
     indy = indy[ia]

@@ -15,14 +15,16 @@ Demonstration of near_finder utility
 ################################################################################
 # Setup
 
-ng                   = 200     # number of points in grid (in each direction)
-nb1                  = 20       # number of points in boundary 1
-nb2                  = 20       # number of points in boundary 2
-nb3                  = 30       # number of points in boundary 3
-nb4                  = 20       # number of points in boundary 4
-verbose              = False    # provide verbose output in coordinate solving
+ng                   = 300     # number of points in grid (in each direction)
+nb1                  = 200       # number of points in boundary 1
+nb2                  = 200       # number of points in boundary 2
+nb3                  = 300       # number of points in boundary 3
+nb4                  = 200       # number of points in boundary 4
+verbose              = True    # provide verbose output in coordinate solving
 interpolation_scheme = 'nufft'  # 'polyi' or 'nufft'
-								# note that verbose=True does nothing for 'polyi'
+                                # note that verbose=True does nothing for 'polyi'
+tol                  = 1e-12
+max_iterations       = 10
 
 # coordinates for grid
 xv = np.linspace(-10, 10, ng, endpoint=True)
@@ -33,7 +35,7 @@ x, y = np.meshgrid(xv, yv, indexing='ij')
 bx1, by1 = star(nb1, r=9, a=0.05, f=3)
 # inner boundaries
 bx2, by2 = star(nb2, x=1.55,  y=3,  r=4.1, a=0.2,  f=5)
-bx3, by3 = star(nb3, x=-5,    y=4,  r=2.2,   a=0.25, f=7)
+bx3, by3 = star(nb3, x=-5,    y=4,  r=2.2, a=0.25, f=7)
 bx4, by4 = star(nb4, x=-5.44, y=-4, r=2,   a=0.3,  f=3)
 
 print('\n\nNear-Finder demonstration, on', ng, 'by', ng, 'grid.')
@@ -67,10 +69,10 @@ float_helper = np.full(x.shape, np.Inf, dtype=float)
 bool_helper  = np.zeros(x.shape, dtype=bool)
 _ = gridpoints_near_curve_update(bx1, by1, xv, yv, d, 1, close, int_helper1, int_helper2, float_helper, bool_helper, interpolation_scheme=interpolation_scheme, verbose=verbose)
 st = time.time()
-res1 = gridpoints_near_curve_update(bx1, by1, xv, yv, d, 1, close, int_helper1, int_helper2, float_helper, bool_helper, interpolation_scheme=interpolation_scheme, verbose=verbose)
-res2 = gridpoints_near_curve_update(bx2, by2, xv, yv, d, 2, close, int_helper1, int_helper2, float_helper, bool_helper, interpolation_scheme=interpolation_scheme, verbose=verbose)
-res3 = gridpoints_near_curve_update(bx3, by3, xv, yv, d, 3, close, int_helper1, int_helper2, float_helper, bool_helper, interpolation_scheme=interpolation_scheme, verbose=verbose)
-res4 = gridpoints_near_curve_update(bx4, by4, xv, yv, d, 4, close, int_helper1, int_helper2, float_helper, bool_helper, interpolation_scheme=interpolation_scheme, verbose=verbose)
+res1 = gridpoints_near_curve_update(bx1, by1, xv, yv, d, 1, close, int_helper1, int_helper2, float_helper, bool_helper, interpolation_scheme=interpolation_scheme, verbose=verbose, tol=tol, max_iterations=max_iterations)
+res2 = gridpoints_near_curve_update(bx2, by2, xv, yv, d, 2, close, int_helper1, int_helper2, float_helper, bool_helper, interpolation_scheme=interpolation_scheme, verbose=verbose, tol=tol, max_iterations=max_iterations)
+res3 = gridpoints_near_curve_update(bx3, by3, xv, yv, d, 3, close, int_helper1, int_helper2, float_helper, bool_helper, interpolation_scheme=interpolation_scheme, verbose=verbose, tol=tol, max_iterations=max_iterations)
+res4 = gridpoints_near_curve_update(bx4, by4, xv, yv, d, 4, close, int_helper1, int_helper2, float_helper, bool_helper, interpolation_scheme=interpolation_scheme, verbose=verbose, tol=tol, max_iterations=max_iterations)
 time_near_points = time.time() - st
 print('Time for points near curve finder:              {:0.1f}'.format(time_near_points*1000))
 
@@ -120,15 +122,15 @@ ax3.imshow(phys.T[::-1],  extent=[-10,10,-10,10])
 ax4.imshow(close.T[::-1], extent=[-10,10,-10,10])
 ss = [10, 10, 20, 20]
 for ax in [ax3, ax4]:
-	ax.set(xlim=(-7.5,-5.5), ylim=(-6.5,-4.5))
+    ax.set(xlim=(-7.5,-5.5), ylim=(-6.5,-4.5))
 for ax, s in zip([ax1, ax2, ax3, ax4], ss):
-	ax.plot(bx1r, by1r, color='white')
-	ax.plot(bx2r, by2r, color='white')
-	ax.plot(bx3r, by3r, color='white')
-	ax.plot(bx4r, by4r, color='white')
-	ax.scatter(bx1, by1, color='white', s=s)
-	ax.scatter(bx2, by2, color='white', s=s)
-	ax.scatter(bx3, by3, color='white', s=s)
-	ax.scatter(bx4, by4, color='white', s=s)
-	ax.set(xticks=[], xticklabels=[], yticks=[], yticklabels=[])
+    ax.plot(bx1r, by1r, color='white')
+    ax.plot(bx2r, by2r, color='white')
+    ax.plot(bx3r, by3r, color='white')
+    ax.plot(bx4r, by4r, color='white')
+    ax.scatter(bx1, by1, color='white', s=s)
+    ax.scatter(bx2, by2, color='white', s=s)
+    ax.scatter(bx3, by3, color='white', s=s)
+    ax.scatter(bx4, by4, color='white', s=s)
+    ax.set(xticks=[], xticklabels=[], yticks=[], yticklabels=[])
 fig.tight_layout()

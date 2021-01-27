@@ -133,6 +133,36 @@ def star(N, x=0.0, y=0.0, r=1.0, a=0.5, f=3, rot=0.0):
     c = (x+1j*y) + (r + r*a*np.cos(f*(t-rot)))*np.exp(1j*t)
     return c.real, c.imag
 
+def analytic_star(t, x=0.0, y=0.0, r=1.0, a=0.5, f=3, rot=0.0):
+    """
+    Function defining a star shaped object
+    Parameters:
+        N:   number of points
+        x:   x coordinate of center
+        y:   y coordinate of center
+        r:   nominal radius
+        a:   amplitude of wobble, 0<a<1, smaller a is less wobbly
+        f:   frequency - how many lobes are in the star
+        rot: angle of rotation
+    """
+    c = (x+1j*y) + (r + r*a*np.cos(f*(t-rot)))*np.exp(1j*t)
+    return c.real, c.imag
+
+def analytic_starp(t, r=1.0, a=0.5, f=3, rot=0.0):
+    """
+    Function defining a star shaped object
+    Parameters:
+        N:   number of points
+        x:   x coordinate of center
+        y:   y coordinate of center
+        r:   nominal radius
+        a:   amplitude of wobble, 0<a<1, smaller a is less wobbly
+        f:   frequency - how many lobes are in the star
+        rot: angle of rotation
+    """
+    c = np.exp(1j*t)*1j*(r + r*a*np.cos(f*(t-rot))) - f*np.exp(1j*t)*(r*a*np.sin(f*(t-rot)))
+    return c.real, c.imag
+
 def upsample(f, N):
     with warnings.catch_warnings():
         warnings.simplefilter('ignore')
