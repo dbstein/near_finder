@@ -209,4 +209,4 @@ class interp_fourier(object):
         self.adj = 1.0/self.in_hat.shape[0]
     def __call__(self, x_out):
         finufftpy.nufft1d2(x_out, self.out, 1, 1e-15, self.in_hat, modeord=1)
-        return self.out.real*self.adj
+        return self.out*self.adj
