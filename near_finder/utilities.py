@@ -203,10 +203,15 @@ class direct_interp_fourier(object):
         return dirft1d2(x, self.f)
 
 class interp_fourier(object):
-    def __init__(self, in_hat, out_size):
-        self.in_hat = in_hat
+    def __init__(self, inp, out_size):
+        self.inp = inp
+        self.in_hat = np.fft.fft(inp)
         self.out = np.empty(out_size, dtype=complex)
-        self.adj = 1.0/self.in_hat.shape[0]
+        self.adj = 1.0/self.inp.shape[0]
+        self.realit = inp.dtype == float
     def __call__(self, x_out):
         finufftpy.nufft1d2(x_out, self.out, 1, 1e-15, self.in_hat, modeord=1)
-        return self.out*self.adj
+        if self.realit:
+            return self.out.real*self.adj
+        else:
+            return self.out*self.adj

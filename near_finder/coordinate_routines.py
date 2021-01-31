@@ -65,7 +65,7 @@ def compute_local_coordinates_nufft(cx, cy, x, y, newton_tol=1e-12,
             return _interp2(f)
     else:
         def interp(f):
-            return _interp(np.fft.fft(f), x.size)
+            return _interp(f, x.size)
     nc_i = interp(nx + 1j*ny)
     c_i = interp(cx + 1j*cy)
     cp_i = interp(xp + 1j*yp)
