@@ -2,7 +2,12 @@ import numpy as np
 import scipy as sp
 import scipy.signal
 import warnings
-import finufftpy
+try:
+    import finufftpy
+    old_nufft = True
+except:
+    import finufft
+    old_nufft = False
 import fast_interp
 import numba
 
@@ -210,7 +215,12 @@ class interp_fourier(object):
         self.adj = 1.0/self.inp.shape[0]
         self.realit = inp.dtype == float
     def __call__(self, x_out):
-        finufftpy.nufft1d2(x_out, self.out, 1, 1e-15, self.in_hat, modeord=1)
+        if old_nufft:
+            finufftpy.nufft1d2(x_out, self.out, 1, 1e-15, self.in_hat, modeord=1)
+        else:
+            print(x_out, x_out.min(), x_out.max())
+            import pdb; pdb.set_trace()
+            finufft.nufft1d2(x_out, self.in_hat, self.out, isign=1, eps=1e-15, modeord=1)
         if self.realit:
             return self.out.real*self.adj
         else:
