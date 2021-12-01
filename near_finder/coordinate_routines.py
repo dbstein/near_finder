@@ -7,6 +7,7 @@ from near_finder.utilities import interp_fourier as _interp
 from near_finder.utilities import have_better_fourier
 if have_better_fourier:
     from near_finder.utilities import interp_fourier2 as _interp2
+from near_finder.nufft_interp import periodic_interp1d
 
 def compute_local_coordinates(cx, cy, x, y, newton_tol=1e-12,
             interpolation_scheme='nufft', guess_ind=None, verbose=False, max_iterations=30):
@@ -28,6 +29,234 @@ def compute_local_coordinates(cx, cy, x, y, newton_tol=1e-12,
         return compute_local_coordinates_polyi(cx, cy, x, y, newton_tol, guess_ind, verbose, max_iterations)
     else:
         raise Exception('interpolation_scheme not recognized')    
+
+@numba.njit(fastmath=True)
+def _guess_ind_finder_centering(cx, cy, x, y, gi, d):
+    _min = 1e300
+    gi_min = (gi - d) % cx.size
+    gi_max = (gi + d) % cx.size
+    for i in range(gi_min, gi_max):
+        dx = cx[i] - x
+        dy = cy[i] - y
+        d = np.sqrt(dx*dx + dy*dy)
+        if d < _min:
+            _min = d
+            argmin = i
+    return argmin
+@numba.njit(fastmath=True, parallel=True)
+def multi_guess_ind_finder_centering(cx, cy, x, y, inds, gi, d):
+    for j in numba.prange(x.size):
+        inds[j] = _guess_ind_finder_centering(cx, cy, x[j], y[j], gi[j], d)
+
+def compute_local_coordinates_nufft_centering_with_interpolaters(cx, cy, x, y, gi, nc_i, c_i, newton_tol=1e-12, 
+                                                verbose=False, max_iterations=30):
+    """
+    Find using the coordinates:
+    x = X + r n_x
+    y = Y + r n_y
+    """
+    xshape = x.shape
+    yshape = y.shape
+    x = x.flatten()
+    y = y.flatten()
+    gi = gi.flatten()
+
+    # function for computing (d^2)_s and its derivative
+    def f(t, x, y):
+        out = c_i(t)
+        C = out[0]
+        Cp = out[1]
+        Cpp = out[2]
+        X = C.real
+        Y = C.imag
+        Xp = Cp.real
+        Yp = Cp.imag
+        Xpp = Cpp.real
+        Ypp = Cpp.imag
+        return Xp*(X-x) + Yp*(Y-y), X, Y, Xp, Yp, Xpp, Ypp
+    def fp(t, x, y, X, Y, Xp, Yp, Xpp, Ypp):
+        return Xpp*(X-x) + Ypp*(Y-y) + Xp*Xp + Yp*Yp
+
+    guess_ind = np.empty(x.size, dtype=int)
+    multi_guess_ind_finder_centering(cx, cy, x, y, guess_ind, gi, 10)
+
+    # get starting guess
+    t = 2*np.pi/cx.size * guess_ind
+
+    # begin Newton iteration
+    rem, X, Y, Xp, Yp, Xpp, Ypp = f(t, x, y)
+    mrem = np.abs(rem).max()
+    if verbose:
+        print('Newton tol: {:0.2e}'.format(mrem))
+    iteration = 0
+    while mrem > newton_tol:
+        J = fp(t, x, y, X, Y, Xp, Yp, Xpp, Ypp)
+        delt = -rem/J
+        line_factor = 1.0
+        while True:
+            t_new = t + line_factor*delt
+            rem_new, X, Y, Xp, Yp, Xpp, Ypp = f(t_new, x, y)
+            mrem_new = np.abs(rem_new).max()
+            testit = True
+            if testit and ((mrem_new < (1-0.5*line_factor)*mrem) or line_factor < 1e-4):
+                t = t_new
+                # put theta back in [0, 2 pi]
+                t[t < 0] += 2*np.pi
+                t[t > 2*np.pi] -= 2*np.pi
+                rem = rem_new
+                mrem = mrem_new
+                break
+            line_factor *= 0.5
+        if verbose:
+            print('Newton tol: {:0.2e}'.format(mrem))
+        iteration += 1
+        if iteration > max_iterations:
+            raise Exception('Exceeded maximum number of iterations solving for coordinates .')
+
+    # need to determine the sign now
+    C = c_i(t)[0]
+    X = C.real
+    Y = C.imag
+    NC = nc_i(t)
+    NX = NC.real
+    NY = NC.imag
+    r = np.hypot(X-x, Y-y)
+
+    xe1 = X + r*NX
+    ye1 = Y + r*NY
+    err1 = np.hypot(xe1-x, ye1-y)
+    xe2 = X - r*NX
+    ye2 = Y - r*NY
+    err2 = np.hypot(xe2-x, ye2-y)
+
+    sign = (err1 < err2).astype(int)*2 - 1
+
+    return t, r*sign
+
+def compute_local_coordinates_nufft_centering(cx, cy, x, y, gi, newton_tol=1e-12, 
+                                                verbose=False, max_iterations=30):
+    """
+    Find using the coordinates:
+    x = X + r n_x
+    y = Y + r n_y
+    """
+    xshape = x.shape
+    yshape = y.shape
+    x = x.flatten()
+    y = y.flatten()
+    gi = gi.flatten()
+
+    n = cx.shape[0]
+    dt = 2*np.pi/n
+    ts = np.arange(n)*dt
+    ik = 1j*np.fft.fftfreq(n, dt/(2*np.pi))
+    # tangent vectors
+    xp = fourier_derivative_1d(f=cx, d=1, ik=ik, out='f')
+    yp = fourier_derivative_1d(f=cy, d=1, ik=ik, out='f')
+    xpp = fourier_derivative_1d(f=cx, d=2, ik=ik, out='f')
+    ypp = fourier_derivative_1d(f=cy, d=2, ik=ik, out='f')
+    # speed
+    sp = np.sqrt(xp*xp + yp*yp)
+    isp = 1.0/sp
+    # unit tangent vectors
+    tx = xp*isp
+    ty = yp*isp
+    # unit normal vectors
+    nx = ty
+    ny = -tx
+    # interpolation routines for the necessary objects
+    if have_better_fourier:
+        def interp(f):
+            return _interp2(f)
+    else:
+        def interp(f):
+            return _interp(f, x.size)
+    nc_i = interp(nx + 1j*ny)
+    c_i = interp(cx + 1j*cy)
+    cp_i = interp(xp + 1j*yp)
+    cpp_i = interp(xpp + 1j*ypp)
+
+    # function for computing (d^2)_s and its derivative
+    def f(t, x, y):
+        C = c_i(t)
+        X = C.real
+        Y = C.imag
+        Cp = cp_i(t)
+        Xp = Cp.real
+        Yp = Cp.imag
+        return Xp*(X-x) + Yp*(Y-y), X, Y, Xp, Yp
+    def fp(t, x, y, X, Y, Xp, Yp):
+        Cpp = cpp_i(t)
+        Xpp = Cpp.real
+        Ypp = Cpp.imag
+        return Xpp*(X-x) + Ypp*(Y-y) + Xp*Xp + Yp*Yp
+
+    guess_ind = np.empty(x.size, dtype=int)
+    multi_guess_ind_finder_centering(cx, cy, x, y, guess_ind, gi, 10)
+
+    # get starting guess
+    t = ts[guess_ind]
+
+    # begin Newton iteration
+    rem, X, Y, Xp, Yp = f(t, x, y)
+    mrem = np.abs(rem).max()
+    if verbose:
+        print('Newton tol: {:0.2e}'.format(mrem))
+    iteration = 0
+    while mrem > newton_tol:
+        J = fp(t, x, y, X, Y, Xp, Yp)
+        delt = -rem/J
+        line_factor = 1.0
+        while True:
+            t_new = t + line_factor*delt
+            rem_new, X, Y, Xp, Yp = f(t_new, x, y)
+            mrem_new = np.abs(rem_new).max()
+            # try:
+            #     rem_new, X, Y, Xp, Yp = f(t_new, x, y)
+            #     mrem_new = np.abs(rem_new).max()
+            #     testit = True
+            # except:
+            #     testit = False
+            testit = True
+            if testit and ((mrem_new < (1-0.5*line_factor)*mrem) or line_factor < 1e-4):
+                t = t_new
+                # put theta back in [0, 2 pi]
+                t[t < 0] += 2*np.pi
+                t[t > 2*np.pi] -= 2*np.pi
+                rem = rem_new
+                mrem = mrem_new
+                break
+            line_factor *= 0.5
+        if verbose:
+            print('Newton tol: {:0.2e}'.format(mrem))
+        iteration += 1
+        if iteration > max_iterations:
+            raise Exception('Exceeded maximum number of iterations solving for coordinates .')
+
+    # need to determine the sign now
+    C = c_i(t)
+    X = C.real
+    Y = C.imag
+    if True: # use nx, ny from guess_inds to determine sign
+        NX = nx[guess_ind]
+        NY = ny[guess_ind]
+    else: # interpolate to get these
+        NC = nc_i(t)
+        NX = NC.real
+        NY = NC.imag
+    r = np.hypot(X-x, Y-y)
+
+    xe1 = X + r*NX
+    ye1 = Y + r*NY
+    err1 = np.hypot(xe1-x, ye1-y)
+    xe2 = X - r*NX
+    ye2 = Y - r*NY
+    err2 = np.hypot(xe2-x, ye2-y)
+
+    sign = (err1 < err2).astype(int)*2 - 1
+
+    return t, r*sign
+
 
 def compute_local_coordinates_nufft(cx, cy, x, y, newton_tol=1e-12, 
                                             guess_ind=None, verbose=False, max_iterations=30):
@@ -108,12 +337,13 @@ def compute_local_coordinates_nufft(cx, cy, x, y, newton_tol=1e-12,
             t_new = t + line_factor*delt
             rem_new, X, Y, Xp, Yp = f(t_new, x, y)
             mrem_new = np.abs(rem_new).max()
-            try:
-                rem_new, X, Y, Xp, Yp = f(t_new, x, y)
-                mrem_new = np.abs(rem_new).max()
-                testit = True
-            except:
-                testit = False
+            # try:
+            #     rem_new, X, Y, Xp, Yp = f(t_new, x, y)
+            #     mrem_new = np.abs(rem_new).max()
+            #     testit = True
+            # except:
+            #     testit = False
+            testit = True
             if testit and ((mrem_new < (1-0.5*line_factor)*mrem) or line_factor < 1e-4):
                 t = t_new
                 # put theta back in [0, 2 pi]
@@ -392,6 +622,63 @@ def compute_local_coordinates_polyi(cx, cy, x, y, newton_tol=1e-12,
     return t, r*sign
 
 
+def compute_local_coordinates_polyi_centering(cx, cy, x, y, gi, newton_tol=1e-12, verbose=None, max_iterations=30):
+    """
+    Find using the coordinates:
+    x = X + r n_x
+    y = Y + r n_y
+    """
+    xshape = x.shape
+    x = x.flatten()
+    y = y.flatten()
+    gi = gi.flatten()
+    xsize = x.size
+
+    n = cx.shape[0]
+    dt = 2*np.pi/n
+    ts = np.arange(n)*dt
+    ik = 1j*np.fft.fftfreq(n, dt/(2*np.pi))
+    # tangent vectors
+    xp = fourier_derivative_1d(f=cx, d=1, ik=ik, out='f')
+    yp = fourier_derivative_1d(f=cy, d=1, ik=ik, out='f')
+    # speed
+    sp = np.sqrt(xp*xp + yp*yp)
+    isp = 1.0/sp
+    # unit tangent vectors
+    tx = xp*isp
+    ty = yp*isp
+    # unit normal vectors
+    nx = ty
+    ny = -tx
+
+    # brute force find of guess_inds if not provided (slow!)
+    guess_ind = np.empty(x.size, dtype=int)
+    multi_guess_ind_finder_centering(cx, cy, x, y, guess_ind, gi, 10)
+
+    # get starting points (initial guess for t and r)
+    initial_ts = ts[guess_ind]
+
+    # run the multi-newton solver
+    t = _multi_newton(initial_ts, x, y, newton_tol, cx, cy, verbose, max_iterations)
+
+    # need to determine the sign now
+    X, Y = np.zeros_like(x), np.zeros_like(x)
+    XP, YP = np.zeros_like(x), np.zeros_like(x)
+    multi_polyi_p(cx, t, X, XP)
+    multi_polyi_p(cy, t, Y, YP)
+    ISP = 1.0/np.sqrt(XP*XP + YP*YP)
+    NX = YP/ISP
+    NY = -XP/ISP
+    r = np.hypot(X-x, Y-y)
+    xe1 = X + r*NX
+    ye1 = Y + r*NY
+    err1 = np.hypot(xe1-x, ye1-y)
+    xe2 = X - r*NX
+    ye2 = Y - r*NY
+    err2 = np.hypot(xe2-x, ye2-y)
+    sign = (err1 < err2).astype(int)*2 - 1
+
+    return t, r*sign
 
 
 
@@ -756,4 +1043,35 @@ def compute_local_coordinates_polyi_old(cx, cy, x, y, newton_tol=1e-12,
     # run the multi-newton solver
     all_t, all_r = _multi_newton_old(initial_ts, initial_rs, x, y, newton_tol, cx, cy, nx, ny, xp, yp, nxp, nyp, verbose, max_iterations)
     return all_t, all_r
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 

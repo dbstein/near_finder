@@ -38,10 +38,10 @@ def gridpoints_near_points(bx, by, xv, yv, d):
 
     close = np.zeros(sh, dtype=bool)
     close_ind = np.full(sh, -1, dtype=int)
-    distance = np.full(sh, 1e15, dtype=float)
+    distance = np.full(sh, 1e30, dtype=float)
 
     _grid_near_points(bx, by, xv, yv, d, close, close_ind, distance)
-    return ne.evaluate('close > 0'), close_ind, distance
+    return ne.evaluate('close > 0'), close_ind, np.sqrt(distance)
 
 def gridpoints_near_points_update(bx, by, xv, yv, d, idn, close, int_helper1,
                                 int_helper2, float_helper, bool_helper):

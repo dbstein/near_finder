@@ -1,6 +1,7 @@
 import numpy as np
 import matplotlib as mpl
 import matplotlib.pyplot as plt
+plt.ion()
 import time
 from near_finder.near_routines import gridpoints_near_points, gridpoints_near_curve
 from near_finder.phys_routines import points_inside_curve
@@ -35,7 +36,7 @@ print('All times given in ms.')
 ################################################################################
 # Test finding points near points
 
-d = 0.05
+d = 0.1
 # first run to compile numba functions
 close, guess, closest = gridpoints_near_points(bx, by, xv, yv, d)
 # run again for timing

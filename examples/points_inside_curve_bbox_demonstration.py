@@ -15,9 +15,9 @@ Demonstration of near_finder utility
 # Setup
 
 # number of points in grid (in each direction)
-ng = 5000
+ng = 2000
 # number of points in boundary (set to small to see accuracy, large to see speed)
-nb = 100
+nb = 20
 # nb = 1000
 verbose=False
 

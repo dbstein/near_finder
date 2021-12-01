@@ -210,19 +210,25 @@ def gridpoints_near_curve_update(cx, cy, xv, yv, d, idn, close, int_helper1, int
         y_test = yv[indy]
         # get local coordinates, find points in_annulus, get coords
         ia, r, t = _check_near_points_all( cx, cy, x_test, y_test, d, interpolation_scheme, tol, sgi, verbose, max_iterations=max_iterations )
-    close[indx, indy] = np.logical_or(bool_helper[indx, indy], ia)
-    indx = indx[ia]
-    indy = indy[ia]
-    r    = r   [ia]
-    t    = t   [ia]
-    nclose = indx.size
+        close[indx, indy] = np.logical_or(bool_helper[indx, indy], ia)
+        indx = indx[ia]
+        indy = indy[ia]
+        r    = r   [ia]
+        t    = t   [ia]
+        nclose = indx.size
+    else:
+        nclose = 0
+        indx = np.array([])
+        indy = np.array([])
+        r = np.array([])
+        t = np.array([])
 
-    return nclose, indx, indy, r, t, (d, cx, cy)
+    return nclose, indx, indy, r, t, (D, cx, cy)
 
 def points_near_curve_coarse(cx, cy, x, y, d):
     # upsample if needed and get search distance
     cx, cy, D = _upsample_curve(cx, cy, d)    
-    near, guess_ind, close = points_near_points(d, bx=cx, by=cy, tx=x, ty=y)
+    near, guess_ind, close = points_near_points(D, bx=cx, by=cy, tx=x, ty=y)
     return near, guess_ind
 
 def points_near_curve(cx, cy, x, y, d, near=None, guess_ind=None, interpolation_scheme='nufft', tol=1e-12, verbose=False):
@@ -266,7 +272,7 @@ def points_near_curve(cx, cy, x, y, d, near=None, guess_ind=None, interpolation_
     cx, cy, D = _upsample_curve(cx, cy, d)    
     # get points near points
     if near is None or guess_ind is None:
-        near, guess_ind, close = points_near_points(d, bx=cx, by=cy, tx=x, ty=y)
+        near, guess_ind, close = points_near_points(D, bx=cx, by=cy, tx=x, ty=y)
     # initialize output matrices
     in_annulus = np.zeros(sz, dtype=bool)
     r = np.full(sz, np.nan, dtype=float)
@@ -283,7 +289,7 @@ def points_near_curve(cx, cy, x, y, d, near=None, guess_ind=None, interpolation_
     in_annulus = in_annulus.reshape(sh)
     r = r.reshape(sh)
     t = t.reshape(sh)
-    return in_annulus, r, t, (d, cx, cy)
+    return in_annulus, r, t, (D, cx, cy)
 
 ################################################################################
 # Sparse Routines
@@ -383,7 +389,7 @@ def points_near_curve_sparse(cx, cy, x, y, d, ind, guess_ind, interpolation_sche
     cx, cy, D = _upsample_curve(cx, cy, d)    
     # get points near points
     if near is None or guess_ind is None:
-        n_close, near_ind, guess_ind, close = points_near_points_sparse(d, bx=cx, by=cy, tx=x, ty=y)
+        n_close, near_ind, guess_ind, close = points_near_points_sparse(D, bx=cx, by=cy, tx=x, ty=y)
     else:
         n_close = near_ind.size
     # initialize output matrices
@@ -400,6 +406,6 @@ def points_near_curve_sparse(cx, cy, x, y, d, ind, guess_ind, interpolation_sche
         # get local coordinates, find points in_annulus, get coords
         _check_near_points( cx, cy, x_test, y_test, d, in_annulus, r, t, near,
                                         interpolation_scheme, tol, gi, verbose )
-    return n_close, near_ind[ia], r[ia], t[ia], (d, cx, cy)
+    return n_close, near_ind[ia], r[ia], t[ia], (D, cx, cy)
 
 
