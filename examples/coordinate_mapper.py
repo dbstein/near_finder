@@ -17,7 +17,7 @@ Demonstration of coordinate_mapper utility
 # Setup
 
 # number of points in boundary (set to small to see accuracy, large to see speed)
-nb = 800
+nb = 300
 
 # where we need to find coordinates to (in distance of h from boundary)
 coordinate_distance = 10
@@ -26,7 +26,7 @@ coordinate_distance = 10
 tol = 1.0e-12
 
 # get a star boundary
-bx, by = star(nb, a=0.2, f=5)
+bx, by = star(nb, a=0.05, f=5)
 bdy = GSB(bx, by)
 max_h = bdy.speed.max()*bdy.dt
 ng = 2 * int(2 / max_h)
@@ -41,6 +41,9 @@ print('All times given in ms.')
 
 h = xv[1] - xv[0]
 coord = coordinate_distance*h
+
+print('...coordinate distance is: {:0.2e}'.format(coord))
+print('...r disagreenments may differ by this value')
 
 ################################################################################
 # Get jittered test points

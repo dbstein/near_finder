@@ -809,7 +809,7 @@ class FullCoordinateTree(CoordinateTree):
         return FCT_Level(xminarr, yminarr, self.width, parent_ind_arr, self.intel)
 
     def _set_tol(self, tol):
-        assert tol > 1e-14, "tol must be > 1e-14"
+        assert tol >= 1.0e-14, "tol must be >= 1.0e-14"
         self.tol = tol
     def _set_order(self, order):
         assert type(order) == int, "order must be an integer"
@@ -894,7 +894,7 @@ def full_locate(xs, ys, leafs, children_ind, xmids, ymids, xm, xM, ym, yM, Codes
             locs[i] = -1
     return level_ids, inds, codes, locs
 
-@numba.njit(parallel=False, fastmath=True, inline='always')
+@numba.njit(parallel=False, fastmath=True)
 def _numba_chbevl(x, c):
     x2 = 2*x
     c0 = c[-2]
@@ -904,7 +904,7 @@ def _numba_chbevl(x, c):
         c0 = c[-i] - c1
         c1 = tmp + c1*x2
     return c0 + c1*x
-@numba.njit(parallel=False, fastmath=True, inline='always')
+@numba.njit(parallel=False, fastmath=True)
 def _numba_chbevl2(x, y, c, temp):
     order = c.shape[0]
     for i in range(order):

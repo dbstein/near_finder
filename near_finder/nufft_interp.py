@@ -169,140 +169,91 @@ class interp_numba_nufft:
 # method using my hacked version of finufft
 
 class interp_finufft:
-    def __init__(self, fh, eps):
+    def __init__(self, fh, eps, **kwargs):
         """
         fh:  (n_trans, n_modes), stack of fourier modes for functions to interp
         """
         if len(fh.shape) == 1:
             self.n = fh.size
-            self.plan = Plan(2, (self.n,), eps=eps, isign=1, modeord=1, chkbnds=0)
+            self.plan = Plan(2, (self.n,), eps=eps, isign=1, modeord=1, chkbnds=0, **kwargs)
         else:
             self.n = fh.shape[1]
-            self.plan = Plan(2, (self.n,), n_trans=fh.shape[0], eps=eps, isign=1, modeord=1, chkbnds=0)
+            self.plan = Plan(2, (self.n,), n_trans=fh.shape[0], eps=eps, isign=1, modeord=1, chkbnds=0, **kwargs)
         self.fh = fh / self.n
         self.plan.execute_type2_part1(self.fh)
-    def __call__(self, x):
-        self.plan.setpts(x)
-        return self.plan.execute_type2_part2()
+    def __call__(self, x, out=None):
+        self.plan.setpts(x, check=False)
+        return self.plan.execute_type2_part2(out)
 
 ################################################################################
 # one method to rule them all (at least unless i can reduce the overhead with finufft)
 
 class periodic_interp1d:
-    def __init__(self, f, eps=1e-14):
+    def __init__(self, f=None, fh=None, eps=1e-14, bounds=None, **kwargs):
         """
-        f: (n_func, n), stack of functions to interpolate
+        f / fh: (n_func, n) or (n) stack of functions to interpolate
         """
-        self.f = f
-        self.n = self.f.shape[-1]
-        self.nb = 1 if len(self.f.shape) == 1 else self.f.shape[0]
-        self.dtype = self.f.dtype
-        self.fh = np.fft.fft(self.f)
-        self.finufft = interp_finufft(self.fh, eps)
-        if self.n < 100:
-            self.non_finufft = interp_numba_direct(self.fh)
+        print('SSIFHSDFHJDSKFHSKF!!!')
+        if fh is None:
+            if f is None: raise Exception("If fh isn't given, need to give f")
+            self.fh = np.fft.fft(f)
         else:
-            self.non_finufft = interp_numba_nufft(self.fh, eps)
+            self.fh = fh
+        if len(self.fh.shape) == 2:
+            self.n_func = self.fh.shape[0]
+            self.singleton = False
+        else:
+            self.n_func = 1
+            self.singleton = True
+        self.eps = eps
+        self.evaluator = interp_finufft(self.fh, self.eps, **kwargs)
+        self.bounds = bounds
+
     def __call__(self, x):
         if type(x) != np.ndarray:
             x = np.array([x])
             scalar = True
         else:
+            sh = list(x.shape)
+            if not self.singleton:
+                sh = [self.n_func,] + sh
+            x = x.ravel()
             scalar = False
-        if x.size / self.nb > 50000:
-            out = self.finufft(x).astype(self.dtype)
-        else:
-            out = self.non_finufft(x).astype(self.dtype)
+        if self.bounds is not None:
+            x = 2*np.pi*(x - self.bounds[0])/(self.bounds[1]-self.bounds[0])
+        out = self.evaluator(x)
         if scalar:
-            return out[0]
+            return out[0] if self.singleton else out[:,0]
         else:
-            return out
+            return out.reshape(sh)
 
+# class periodic_interp1d:
+#     def __init__(self, f, eps=1e-14, **kwargs):
+#         """
+#         f: (n_func, n), stack of functions to interpolate
+#         """
+#         self.f = f
+#         self.n = self.f.shape[-1]
+#         self.nb = 1 if len(self.f.shape) == 1 else self.f.shape[0]
+#         self.dtype = self.f.dtype
+#         self.fh = np.fft.fft(self.f)
+#         self.finufft = interp_finufft(self.fh, eps, **kwargs)
+#         if self.n < 100:
+#             self.non_finufft = interp_numba_direct(self.fh)
+#         else:
+#             self.non_finufft = interp_numba_nufft(self.fh, eps)
+#     def __call__(self, x):
+#         if type(x) != np.ndarray:
+#             x = np.array([x])
+#             scalar = True
+#         else:
+#             scalar = False
+#         if x.size / self.nb > 50000:
+#             out = self.finufft(x).astype(self.dtype)
+#         else:
+#             out = self.non_finufft(x).astype(self.dtype)
+#         if scalar:
+#             return out[0]
+#         else:
+#             return out
 
-"""
-
-def allclose(x, y):
-    return np.abs(x-y).max()
-
-def test(n, m, eps=1e-14):
-
-    print('\n\n--- Testing with', n, 'source points and', m, 'target points.')
-    x = np.linspace(0, 2*np.pi, n, endpoint=False)
-    y = np.exp(np.sin(x)) + 1j*np.exp(np.sin(2*x)-np.cos(3*x))
-    yh = np.fft.fft(y)
-    yhr = np.row_stack([yh, 2*yh, 3*yh])
-    xc = np.random.rand(m) * 2*np.pi
-
-    # direct eval
-    interp = interp_numba_direct(yh)
-    out1_dir = interp(xc)
-    print('Timing direct, 1 density')
-    %timeit -n 3 -r 5 out = interp(xc)
-    interp = interp_numba_direct(yhr)
-    out2_dir = interp(xc)
-    print('Timing direct, 3 densities')
-    %timeit -n 3 -r 5 out = interp(xc)
-
-    # my nufft
-    interp = interp_numba_nufft(yh, eps)
-    out1_me = interp(xc)
-    print('Timing mine, 1 density')
-    %timeit -n 3 -r 5 out = interp(xc)
-    interp = interp_numba_nufft(yhr, eps)
-    out2_me = interp(xc)
-    print('Timing mine, 3 densities')
-    %timeit -n 3 -r 5 out = interp(xc)
-
-    # finufft
-    interp = interp_finufft(yh, eps)
-    out1_fi = interp(xc)
-    print('Timing FI, 1 density')
-    %timeit -n 3 -r 5 out = interp(xc)
-    interp = interp_finufft(yhr, eps)
-    out2_fi = interp(xc)
-    print('Timing FI, 3 densities')
-    %timeit -n 3 -r 5 out = interp(xc)
-
-    # finufft classic
-    interp = interp_finufft_classic(yh, eps)
-    out1_fi = interp(xc)
-    print('Timing FI Classic, 1 density')
-    %timeit -n 3 -r 5 out = interp(xc)
-    interp = interp_finufft_classic(yhr, eps)
-    out2_fi = interp(xc)
-    print('Timing FI Classic, 3 densities')
-    %timeit -n 3 -r 5 out = interp(xc)
-
-    # finufft old
-    interp = interp_finufft_old(yh, eps)
-    out1_fi = interp(xc)
-    print('Timing FI Old, 1 density')
-    %timeit -n 3 -r 5 out = interp(xc)
-    interp = interp_finufft_old(yhr, eps)
-    out2_fi = interp(xc)
-    print('Timing FI Old, 3 densities')
-    %timeit -n 3 -r 5 out = interp(xc)
-
-    print('')
-    print('Difference, direct/nufft_me, 1 density:   {:0.2e}'.format(allclose(out1_dir, out1_me)))
-    print('Difference, direct/nufft_me, 3 densities: {:0.2e}'.format(allclose(out2_dir, out2_me)))
-
-    print('Difference, direct/finnufft, 1 density:   {:0.2e}'.format(allclose(out1_dir, out1_fi)))
-    print('Difference, direct/finnufft, 3 densities: {:0.2e}'.format(allclose(out2_dir, out2_fi)))
-
-test(50, 16)
-test(50, 1000)
-test(50, 100000)
-test(50, 1000000)
-
-test(200, 16)
-test(200, 1000)
-test(200, 20000)
-
-test(1000, 16)
-test(1000, 1000)
-test(1000, 100000)
-
-test(10000, 16)
-test(10000, 1000)
-#"""
