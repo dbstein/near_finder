@@ -193,7 +193,6 @@ class periodic_interp1d:
         """
         f / fh: (n_func, n) or (n) stack of functions to interpolate
         """
-        print('SSIFHSDFHJDSKFHSKF!!!')
         if fh is None:
             if f is None: raise Exception("If fh isn't given, need to give f")
             self.fh = np.fft.fft(f)
