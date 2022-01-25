@@ -21,6 +21,20 @@ Functions to check if bdy shifted by r in the normal direction is still 'okay'
 This is measured by the Jacobian of the transform being non-singular out that shift
 """
 
+def compute_max_dists(bdy):
+    Rκ = 1.0/bdy.curvature
+    Rκp = Rκ[Rκ >  0]
+    Rκn = Rκ[Rκ <= 0]
+    if Rκp.size > 0:
+        max_inner_dist =  np.min(Rκp)
+    else:
+        max_inner_dist = np.inf
+    if Rκn.size > 0:
+        max_outer_dist = -np.max(Rκn)
+    else:
+        max_outer_dist = np.inf
+    return max_inner_dist, max_outer_dist
+
 def compute_ξ(bdy):
     return -(bdy.normal_x*bdy.cpp.real + bdy.normal_y*bdy.cpp.imag)/bdy.speed**2
 def check_J(ξ, r):
@@ -448,23 +462,47 @@ class CoordinateTree:
         }
 
     def _compute_bounding_curves(self, inner_dist, outer_dist, R, S):
-        ξ = compute_ξ(self.bdy)
+        self.max_inner_dist, self.max_outer_dist = compute_max_dists(self.bdy)
         if inner_dist is not None and outer_dist is not None:
-            inverse_inner_R = check_J(ξ, -inner_dist)
-            inverse_outer_R = check_J(ξ, outer_dist)
-            adj = 1.0 - 1/R
-            inner_S = 1/(adj*inverse_inner_R)
-            outer_S = 1/(adj*inverse_outer_R)
+        # distances should be positive!
+            if inner_dist < 0 or outer_dist < 0:
+                raise Exception('Provide positive (unsigned) distances.')
+            if inner_dist > self.max_inner_dist:
+                raise Exception('Requested inner distance greater than max allowed by curvature.')
+            if outer_dist > self.max_outer_dist:
+                raise Exception('Requested outer distance greater than max allowed by curvature.')
             self.inner_coordinate_dist = inner_dist
             self.outer_coordinate_dist = outer_dist
-            self.inner_mapping_dist = get_inner_dist(ξ, inner_S)
-            self.outer_mapping_dist = get_outer_dist(ξ, outer_S)
-            # yet, whatever happens, don't let these get bigger than the total coordinate width
+            # now we set mapping dist by moving "R" towards the maximum
+            self.inner_coordinate_ratio = self.inner_coordinate_dist / self.max_inner_dist
+            self.inner_mapping_ratio = self.inner_coordinate_ratio + (1.0 - self.inner_coordinate_ratio) / R
+            self.inner_mapping_dist = self.inner_mapping_ratio * self.max_inner_dist
+            self.outer_coordinate_ratio = self.outer_coordinate_dist / self.max_outer_dist
+            self.outer_mapping_ratio = self.outer_coordinate_ratio + (1.0 - self.outer_coordinate_ratio) / R
+            self.outer_mapping_dist = self.outer_mapping_ratio * self.max_outer_dist
+            # adjust so that they don't get too big (constrain each mapping_dist to be only its coordinate_dist + total_coordinate_dist)
             total_coordinate_width = self.inner_coordinate_dist + self.outer_coordinate_dist
-            max_inner = self.inner_coordinate_dist + total_coordinate_width
-            max_outer = self.outer_coordinate_dist + total_coordinate_width
-            self.inner_mapping_dist = min(self.inner_mapping_dist, max_inner)
-            self.outer_mapping_dist = min(self.outer_mapping_dist, max_outer)
+            max_inner_mapping_dist = self.inner_coordinate_dist + total_coordinate_width
+            max_outer_mapping_dist = self.outer_coordinate_dist + total_coordinate_width
+            self.inner_mapping_dist = min(self.inner_mapping_dist, max_inner_mapping_dist)
+            self.outer_mapping_dist = min(self.outer_mapping_dist, max_outer_mapping_dist)
+        # ξ = compute_ξ(self.bdy)
+        # if inner_dist is not None and outer_dist is not None:
+        #     inverse_inner_R = check_J(ξ, -inner_dist)
+        #     inverse_outer_R = check_J(ξ, outer_dist)
+        #     adj = 1.0 - 1/R
+        #     inner_S = 1/(adj*inverse_inner_R)
+        #     outer_S = 1/(adj*inverse_outer_R)
+        #     self.inner_coordinate_dist = inner_dist
+        #     self.outer_coordinate_dist = outer_dist
+        #     self.inner_mapping_dist = get_inner_dist(ξ, inner_S)
+        #     self.outer_mapping_dist = get_outer_dist(ξ, outer_S)
+        #     # yet, whatever happens, don't let these get bigger than the total coordinate width
+        #     total_coordinate_width = self.inner_coordinate_dist + self.outer_coordinate_dist
+        #     max_inner = self.inner_coordinate_dist + total_coordinate_width
+        #     max_outer = self.outer_coordinate_dist + total_coordinate_width
+        #     self.inner_mapping_dist = min(self.inner_mapping_dist, max_inner)
+        #     self.outer_mapping_dist = min(self.outer_mapping_dist, max_outer)
         elif inner_dist is None and outer_dist is None:
             # THE LOGIC HERE NEEDS TO BE CHECKED
 
