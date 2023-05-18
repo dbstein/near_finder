@@ -266,7 +266,8 @@ class periodic_interp2d:
             self.n_func = 1
             self.singleton = True
         self.eps = eps
-        self.evaluator = interp2d_finufft(self.fh, self.eps, **kwargs)
+        # self.evaluator = interp2d_finufft(self.fh, self.eps, **kwargs)
+        self.evaluator = interp2d_numba_nufft(self.fh, self.eps)
         self.xbounds = xbounds
         self.ybounds = ybounds
 

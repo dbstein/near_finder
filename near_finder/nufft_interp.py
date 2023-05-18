@@ -205,7 +205,8 @@ class periodic_interp1d:
             self.n_func = 1
             self.singleton = True
         self.eps = eps
-        self.evaluator = interp_finufft(self.fh, self.eps, **kwargs)
+        # self.evaluator = interp_finufft(self.fh, self.eps, **kwargs)
+        self.evaluator = interp_numba_nufft(self.fh, self.eps)
         self.bounds = bounds
 
     def __call__(self, x):
