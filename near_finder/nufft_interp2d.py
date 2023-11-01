@@ -2,7 +2,13 @@ import numpy as np
 import numba
 from finufft import Plan
 from function_generator import FunctionGenerator
-get_thread_id = numba.np.ufunc.parallel._get_thread_id
+try:
+    get_thread_id = numba.np.ufunc.parallel._get_thread_id
+except:
+    try:
+        get_thread_id = numba.np.ufunc.parallel.get_thread_id
+    except:
+        get_thread_id = numba.get_thread_id
 
 """
 Highly optimized periodic interpolation for stacks of functions
