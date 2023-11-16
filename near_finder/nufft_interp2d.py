@@ -1,6 +1,6 @@
 import numpy as np
 import numba
-from finufft import Plan
+# from finufft import Plan
 from function_generator import FunctionGenerator
 try:
     get_thread_id = numba.np.ufunc.parallel._get_thread_id
@@ -269,7 +269,7 @@ class periodic_interp2d:
             self.n_func = 1
             self.singleton = True
         self.eps = eps
-        self.evaluator = interp2d_finufft(self.fh, self.eps, **kwargs)
+        self.evaluator = interp2d_numba_nufft(self.fh, self.eps, **kwargs)
         self.xbounds = xbounds
         self.ybounds = ybounds
 

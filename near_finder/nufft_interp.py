@@ -1,6 +1,6 @@
 import numpy as np
 import numba
-from finufft import Plan
+# from finufft import Plan
 from function_generator import FunctionGenerator
 
 """
@@ -167,6 +167,9 @@ class interp_numba_nufft:
 
 ################################################################################
 # method using my hacked version of finufft
+# I have removed this from periodic_interp1d, unfortunately
+# too hard to actually maintain the hacked version of finufft
+# now periodic_interp1d relies on the numba_nufft version
 
 class interp_finufft:
     def __init__(self, fh, eps, **kwargs):
@@ -205,7 +208,7 @@ class periodic_interp1d:
             self.n_func = 1
             self.singleton = True
         self.eps = eps
-        self.evaluator = interp_finufft(self.fh, self.eps, **kwargs)
+        self.evaluator = interp_numba_nufft(self.fh, self.eps, **kwargs)
         self.bounds = bounds
 
     def __call__(self, x):
@@ -225,34 +228,3 @@ class periodic_interp1d:
             return out[0] if self.singleton else out[:,0]
         else:
             return out.reshape(sh)
-
-# class periodic_interp1d:
-#     def __init__(self, f, eps=1e-14, **kwargs):
-#         """
-#         f: (n_func, n), stack of functions to interpolate
-#         """
-#         self.f = f
-#         self.n = self.f.shape[-1]
-#         self.nb = 1 if len(self.f.shape) == 1 else self.f.shape[0]
-#         self.dtype = self.f.dtype
-#         self.fh = np.fft.fft(self.f)
-#         self.finufft = interp_finufft(self.fh, eps, **kwargs)
-#         if self.n < 100:
-#             self.non_finufft = interp_numba_direct(self.fh)
-#         else:
-#             self.non_finufft = interp_numba_nufft(self.fh, eps)
-#     def __call__(self, x):
-#         if type(x) != np.ndarray:
-#             x = np.array([x])
-#             scalar = True
-#         else:
-#             scalar = False
-#         if x.size / self.nb > 50000:
-#             out = self.finufft(x).astype(self.dtype)
-#         else:
-#             out = self.non_finufft(x).astype(self.dtype)
-#         if scalar:
-#             return out[0]
-#         else:
-#             return out
-

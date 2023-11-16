@@ -278,7 +278,7 @@ def gridpoints_near_points_sparse(bx, by, xv, yv, d):
     """
     return _grid_near_points_sparse(bx, by, xv, yv, d)
 
-@numba.njit(parallel=True)
+@numba.njit()
 def _grid_near_points_sparse(x, y, xv, yv, d):
     N = x.size
     Nx = xv.size
