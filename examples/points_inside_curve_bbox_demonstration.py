@@ -1,6 +1,7 @@
 import numpy as np
 import matplotlib as mpl
 import matplotlib.pyplot as plt
+plt.ion()
 import time
 from near_finder.points_near_points import gridpoints_near_points, gridpoints_near_points_update, gridpoints_near_points_sparse, points_near_points_sparse
 from near_finder.points_near_curve import gridpoints_near_curve, gridpoints_near_curve_sparse, gridpoints_near_curve_update

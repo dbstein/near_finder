@@ -3,10 +3,6 @@ import numba
 import scipy
 import scipy.interpolate
 from near_finder.utilities import fourier_derivative_1d
-from near_finder.utilities import interp_fourier as _interp
-from near_finder.utilities import have_better_fourier
-if have_better_fourier:
-    from near_finder.utilities import interp_fourier2 as _interp2
 from near_finder.nufft_interp import periodic_interp1d
 
 def compute_local_coordinates(cx, cy, x, y, newton_tol=1e-12,
@@ -165,12 +161,8 @@ def compute_local_coordinates_nufft_centering(cx, cy, x, y, gi, newton_tol=1e-12
     nx = ty
     ny = -tx
     # interpolation routines for the necessary objects
-    if have_better_fourier:
-        def interp(f):
-            return _interp2(f)
-    else:
-        def interp(f):
-            return _interp(f, x.size)
+    def interp(f):
+        return periodic_interp1d(f=f, eps=1e-14)
     nc_i = interp(nx + 1j*ny)
     c_i = interp(cx + 1j*cy)
     cp_i = interp(xp + 1j*yp)
@@ -289,12 +281,8 @@ def compute_local_coordinates_nufft(cx, cy, x, y, newton_tol=1e-12,
     nx = ty
     ny = -tx
     # interpolation routines for the necessary objects
-    if have_better_fourier:
-        def interp(f):
-            return _interp2(f)
-    else:
-        def interp(f):
-            return _interp(f, x.size)
+    def interp(f):
+        return periodic_interp1d(f=f, eps=1e-14)
     nc_i = interp(nx + 1j*ny)
     c_i = interp(cx + 1j*cy)
     cp_i = interp(xp + 1j*yp)
@@ -770,12 +758,8 @@ def compute_local_coordinates_nufft_old(cx, cy, x, y, newton_tol=1e-12,
     nyp = fourier_derivative_1d(f=ny, d=1, ik=ik, out='f')
 
     # interpolation routines for the necessary objects
-    if have_better_fourier:
-        def interp(f):
-            return _interp2(f)
-    else:
-        def interp(f):
-            return _interp(np.fft.fft(f), x.size)
+    def interp(f):
+        return periodic_interp1d(f=f, eps=1e-14)
     nx_i =  interp(nx)
     ny_i =  interp(ny)
     nxp_i = interp(nxp)

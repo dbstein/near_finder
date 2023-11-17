@@ -2,12 +2,6 @@ import numpy as np
 import scipy as sp
 import scipy.signal
 import warnings
-try:
-    import finufftpy
-    old_nufft = True
-except:
-    import finufft
-    old_nufft = False
 import fast_interp
 import numba
 
@@ -180,12 +174,6 @@ class interp_poly(object):
     def __call__(self, x_out):
         return self.func(x_out)
 
-try:
-    from finufftpy._interfaces import interpolater as interp_fourier2
-    have_better_fourier = True
-except:
-    have_better_fourier = False
-
 @numba.njit(parallel=True)
 def dirft1d2(x, f):
     c = np.empty(x.size, dtype=complex)
@@ -207,19 +195,19 @@ class direct_interp_fourier(object):
     def __call__(self, x):
         return dirft1d2(x, self.f)
 
-class interp_fourier(object):
-    def __init__(self, inp, out_size):
-        self.inp = inp
-        self.in_hat = np.fft.fft(inp)
-        self.out = np.empty(out_size, dtype=complex)
-        self.adj = 1.0/self.inp.shape[0]
-        self.realit = inp.dtype == float
-    def __call__(self, x_out):
-        if old_nufft:
-            finufftpy.nufft1d2(x_out, self.out, 1, 1e-15, self.in_hat, modeord=1)
-        else:
-            finufft.nufft1d2(x_out, self.in_hat, self.out, isign=1, eps=1e-15, modeord=1)
-        if self.realit:
-            return self.out.real*self.adj
-        else:
-            return self.out*self.adj
+# class interp_fourier(object):
+#     def __init__(self, inp, out_size):
+#         self.inp = inp
+#         self.in_hat = np.fft.fft(inp)
+#         self.out = np.empty(out_size, dtype=complex)
+#         self.adj = 1.0/self.inp.shape[0]
+#         self.realit = inp.dtype == float
+#     def __call__(self, x_out):
+#         if old_nufft:
+#             finufftpy.nufft1d2(x_out, self.out, 1, 1e-15, self.in_hat, modeord=1)
+#         else:
+#             finufft.nufft1d2(x_out, self.in_hat, self.out, isign=1, eps=1e-15, modeord=1)
+#         if self.realit:
+#             return self.out.real*self.adj
+#         else:
+#             return self.out*self.adj

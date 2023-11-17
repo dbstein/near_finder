@@ -1,6 +1,6 @@
 import numpy as np
 import numba
-from finufft import Plan
+# from finufft import Plan
 from function_generator import FunctionGenerator
 from near_finder.nufft_interp2d import dirft2d_1_serial, dirft2d_1_parallel, dirft2d_batch_serial, dirft2d_batch_parallel
 from near_finder.nufft_interp2d import interp2d_numba_direct, interp2d_numba_nufft, interp2d_finufft, periodic_interp2d
@@ -44,7 +44,6 @@ def test(nx, ny, m, eps=1e-14):
     else:
         did_direct = False
 
-
     # my nufft
     st = time.time()
     interp = interp2d_numba_nufft(fh[0], eps)
@@ -59,45 +58,17 @@ def test(nx, ny, m, eps=1e-14):
     print('Timing mine, 3 densities')
     %timeit -n 3 -r 5 out = interp(xt, yt)
 
-    # finufft
-    st = time.time()
-    interp = interp2d_finufft(fh[0], eps)
-    fi_form1_time = time.time() - st
-    out1_fi = interp(xt, yt)
-    print('Timing FI, 1 density')
-    %timeit -n 3 -r 5 out = interp(xt, yt)
-    st = time.time()
-    interp = interp2d_finufft(fh, eps)
-    fi_form_batch_time = time.time() - st
-    out2_fi = interp(xt, yt)
-    print('Timing FI, 3 densities')
-    %timeit -n 3 -r 5 out = interp(xt, yt)
-
-    # periodic interp2d (finufft through nice interface)
-    interp = periodic_interp2d(f=fg[0], eps=eps)
-    out1_pi = interp(xt, yt)
-    interp = periodic_interp2d(fh=fh, eps=eps)
-    out2_pi = interp(xt, yt)
-
     print('My NUFFT1 form time: {:0.1f}'.format(my_form1_time*1000))
     print('My NUFFTb form time: {:0.1f}'.format(my_form_batch_time*1000))
-    print('FI NUFFT1 form time: {:0.1f}'.format(fi_form1_time*1000))
-    print('FI NUFFTb form time: {:0.1f}'.format(fi_form_batch_time*1000))
 
     print('')
 
     if did_direct:
         print('Difference, direct/nufft_me, 1 density:   {:0.2e}'.format(allclose(out1_dir, out1_me)))
         print('Difference, direct/nufft_me, 3 densities: {:0.2e}'.format(allclose(out2_dir, out2_me)))
-        print('Difference, direct/finnufft, 1 density:   {:0.2e}'.format(allclose(out1_dir, out1_fi)))
-        print('Difference, direct/finnufft, 3 densities: {:0.2e}'.format(allclose(out2_dir, out2_fi)))
 
     print('Error,      nufft_me/truth,    1 density:   {:0.2e}'.format(allclose(out1_me, ft[0])))
     print('Error,      nufft_me/truth,    3 densities: {:0.2e}'.format(allclose(out2_me, ft)))
-    print('Difference, nufft_me/finnufft, 1 density:   {:0.2e}'.format(allclose(out1_me, out1_fi)))
-    print('Difference, nufft_me/finnufft, 3 densities: {:0.2e}'.format(allclose(out2_me, out2_fi)))
-    print('Difference, nufft_pi/finnufft, 1 densities: {:0.2e}'.format(allclose(out1_pi, out1_fi)))
-    print('Difference, nufft_pi/finnufft, 3 densities: {:0.2e}'.format(allclose(out2_pi, out2_fi)))
 
 
 test(50, 50, 16)

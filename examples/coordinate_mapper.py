@@ -26,14 +26,14 @@ coordinate_distance = 10
 tol = 1.0e-12
 
 # get a star boundary
-bx, by = star(nb, a=0.05, f=5)
+bx, by = star(nb, r=3.0, a=0.00, f=5)
 bdy = GSB(bx, by)
 max_h = bdy.speed.max()*bdy.dt
 ng = 2 * int(2 / max_h)
 
 # coordinates for grid
-xv = np.linspace(-2, 2, ng, endpoint=False)
-yv = np.linspace(-2, 2, ng, endpoint=False)
+xv = np.linspace(-4, 4, ng, endpoint=False)
+yv = np.linspace(-4, 4, ng, endpoint=False)
 x, y = np.meshgrid(xv, yv, indexing='ij')
 
 print('\n\nCoordinate mapper demonstration, on', ng, 'by', ng, 'grid, boundary has', nb, 'points.')
@@ -44,6 +44,9 @@ coord = coordinate_distance*h
 
 print('...coordinate distance is: {:0.2e}'.format(coord))
 print('...r disagreenments may differ by this value')
+
+inner_dist = coord
+outer_dist = 0.0
 
 ################################################################################
 # Get jittered test points
@@ -66,7 +69,7 @@ def _modularize(in_coordinates, rs, ts, inner_dist, outer_dist):
     outt[outt >= 2*np.pi] -= 2*np.pi
     return outc, outr, outt
 def modularize(in_coordinates, rs, ts):
-    return _modularize(in_coordinates, rs, ts, coord, 0.0)
+    return _modularize(in_coordinates, rs, ts, inner_dist, outer_dist)
 
 def tree_modularize(out):
     outc = out[0] == 1
@@ -106,9 +109,9 @@ a_gnpc = (c_gnpc, r_gnpc, t_gnpc)
 ################################################################################
 # Build Full Coordinate Tree
 
-FTree = FullCoordinateTree(bdy, coord, 0.0, parameters={'order' : 12, 'tol' : tol})
+FTree = FullCoordinateTree(bdy, inner_dist, outer_dist, parameters={'order' : 12, 'tol' : tol})
 st=time.time()
-FTree = FullCoordinateTree(bdy, coord, 0.0, parameters={'order' : 12, 'tol' : tol})
+FTree = FullCoordinateTree(bdy, inner_dist, outer_dist, parameters={'order' : 12, 'tol' : tol})
 ftree_form_time = time.time() - st
 
 # plot
@@ -138,9 +141,9 @@ ag_ftree = (cg_ftree, rg_ftree, tg_ftree)
 ################################################################################
 # Build Lightweight Coordinate Tree
 
-LTree = LightweightCoordinateTree(bdy, coord, 0.0)
+LTree = LightweightCoordinateTree(bdy, inner_dist, outer_dist, )
 st=time.time()
-LTree = LightweightCoordinateTree(bdy, coord, 0.0)
+LTree = LightweightCoordinateTree(bdy, inner_dist, outer_dist, )
 ltree_form_time = time.time() - st
 
 # plot
